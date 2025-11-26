@@ -13,24 +13,28 @@ order by income desc
 limit 10;
 
 --2. lowest_average_income
-WITH seller_stats AS ( --создаем CTE Отчет с продавцами, чья выручка ниже средней выручки всех продавцов
-SELECT first_name || ' '|| last_name as seller, --соединяем имя и фамилию в одну колонку
-coalesce(FLOOR(SUM(sales.quantity)),0) as operations,
-coalesce(FLOOR(AVG (products.price*sales.quantity)),0) as income,-- выводим столбец income как произведение price*quantity
-coalesce(FLOOR(SUM (products.price*sales.quantity)),0) - FLOOR(AVG(COALESCE(SUM(products.price * sales.quantity), 0)) OVER()) as average_income
-from employees as employees-- с помощью оконной функции рассчитываю среднее занчение по всем продавцам и получаю отклонение по каждому продавцу от общего среднего
-join sales as sales on--присоединие таблицы sales
-employees.employee_id = sales.sales_person_id
-left join products as products on--присоединение таблицы products
-products.product_id = sales.product_id
-group by seller
+WITH seller_averages AS (
+    SELECT 
+        first_name || ' ' || last_name as seller,
+        FLOOR(AVG(products.price * sales.quantity)) as average_income
+    FROM employees
+    JOIN sales ON employees.employee_id = sales.sales_person_id
+    JOIN products ON products.product_id = sales.product_id
+    GROUP BY first_name, last_name
+),
+overall_avg AS (
+    SELECT FLOOR(AVG(products.price * sales.quantity)) as overall_avg_income
+    FROM sales
+    JOIN products ON products.product_id = sales.product_id
 )
 SELECT 
-    seller,
-    average_income
-FROM seller_stats
-where average_income < 0--ывожу список продавцов, у которых доход меньше среденего по всем продавцам
-ORDER BY average_income;
+    sa.seller,
+    sa.average_income
+FROM seller_averages sa
+CROSS JOIN overall_avg oa
+WHERE sa.average_income < oa.overall_avg_income
+ORDER BY sa.average_income;
+
 
 --3.day_of_the_week_income
 	select first_name || ' '|| last_name as seller,
